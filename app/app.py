@@ -1,6 +1,7 @@
 def app():
     while True:
-        break
+        user_input = input(">>")
+        print(f'You entered {user_input}')
 
-if "__name__" == "__main__" :
+if __name__ == "__main__" :
     app()

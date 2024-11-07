@@ -1,9 +1,0 @@
-version: "3.8"
-services:
-  lockduck:
-#    image: python:3.9.20
-    build: .
-    container_name: lockduck
-#    working_dir: /lockduck
-    volumes:
-      - ./app:/lockduck
