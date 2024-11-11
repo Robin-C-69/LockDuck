@@ -10,8 +10,13 @@ def show_help():
     click.echo(click.style('Invalid command', fg='green'))
 
 
+def initialize_db():
+    db_path = "lockduck.db"
+
+
 def app():
     welcome()
+    initialize_db()
     while True:
         user_input = click.prompt(">>", prompt_suffix="" ,type=str)
         action = user_input.lower().split(" ")[0]
