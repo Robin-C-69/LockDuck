@@ -1,22 +1,20 @@
 import click
-
 import commands as command
+from db_models import init_db
+
 
 def welcome():
     click.echo(click.style('Welcome to LockDuck', fg='green'))
 
 
 def show_help():
-    click.echo(click.style('Invalid command', fg='green'))
-
-
-def initialize_db():
-    db_path = "lockduck.db"
+    click.echo(click.style('get some help here', fg='green'))
 
 
 def app():
     welcome()
-    initialize_db()
+    init_db()
+    master_key="master_key" #TODO
     while True:
         user_input = click.prompt(">>", prompt_suffix="" ,type=str)
         action = user_input.lower().split(" ")[0]
@@ -26,16 +24,19 @@ def app():
             show_help()
             continue
 
-
         match action:
             case "add":
-                command.create(args)
+                transaction_result = command.create(master_key, args)
+                click.echo(transaction_result)
             case "get":
-                command.read(args)
+                transaction_result = command.read(master_key, args)
+                click.echo(transaction_result)
             case "update":
-                command.update(args)
+                transaction_result = command.update(master_key, args)
+                click.echo(transaction_result)
             case "delete":
-                command.delete(args)
+                transaction_result = command.delete(args)
+                click.echo(transaction_result)
             case "exit" | "quit":
                 break
             case _:

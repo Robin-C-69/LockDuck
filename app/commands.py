@@ -1,24 +1,50 @@
+import sqlite3
+
+import texttable
+from pydantic import NoneStr
+
 from app import show_help
-import db as db
+from db_models import DB_PATH
+from encryption import password_encrypt, password_decrypt
+
+ITERATIONS = 100_000
 
 
-def args_to_dict(params, flag_map):
-    res = {}
-    try:
-        i = 0
-        while i < len(params):
-            if params[i] in flag_map and params[i + 1] not in flag_map:
-                res[flag_map[params[i]]] = params[i + 1]
+def args_to_dict(params, flag_map, autocomplete=False):
+    res = {key: "" for key in flag_map.values()}
+    # res = {}
+    i = 0
+
+    while i < len(params):
+        flag = params[i]
+        if flag in flag_map:
+            next_param = params[i + 1] if i + 1 < len(params) else None
+            if next_param and next_param not in flag_map:
+                res[flag_map[flag]] = next_param
                 i += 2
             else:
-                res = None
-                break
-    except IndexError:
-        return None
+                if autocomplete:
+                    res[flag_map[flag]] = ""
+                i += 1
+        else:
+            return None
+
     return res
 
 
-def create(*args):
+def format_in_table(rows_list) -> str:
+    table_obj = texttable.Texttable()
+
+    table_obj.set_cols_align(['l', 'l', 'l'])
+    table_obj.set_cols_dtype(['t', 't', 't'])
+    table_obj.set_cols_valign(['m', 'm', 'm'])
+
+    table_obj.add_rows([["Link", "Username", "Password"]] + rows_list)
+
+    return table_obj.draw()
+
+
+def create(master_key: str, *args) -> str:
     def parse_command(command):
         params = command[0]
         flag_map = {
@@ -30,60 +56,33 @@ def create(*args):
         return command_dict
 
     parsed = parse_command(args)
-
     if parsed is None:
         show_help()
-        return
+        return ""
 
-    #TODO
-    sql_res = db.create(parsed)
-    print(sql_res)
+    password = parsed['password']
+    link = parsed['link']
+    username = parsed['username']
+    encrypted_password = password_encrypt(password.encode(), master_key, ITERATIONS).decode()
 
-
-def read(*args):
-    def parse_command(command):
-        params = command[0]
-        flag_map = {
-            "-l": "link",
-            "-u": "username",
-        }
-        command_dict = args_to_dict(params, flag_map)
-        return command_dict
-
-    parsed = parse_command(args)
-
-    if parsed is None:
-        show_help()
-        return
-
-    #TODO
-    sql_res = db.read(parsed)
-    print(sql_res)
+    con = sqlite3.connect(DB_PATH)
+    cur = con.cursor()
+    try:
+        cur.execute("SELECT username from Credentials where link = ?", (link,))
+        if cur.fetchone() is not None:
+            return f"link {link} already exists"
+        cur.execute("INSERT INTO Credentials (link, username, password) VALUES (?, ?, ?)",
+                    (link, username, encrypted_password))
+        con.commit()
+        return f"New credential created for {username} with link {link}"
+    except sqlite3.Error as error:
+        con.rollback()
+        return str(error)
+    finally:
+        con.close()
 
 
-def update(*args):
-    def parse_command(command): #TODO : Check what params will be there
-        params = command[0]
-        flag_map = {
-            "-l": "link",
-            "-u": "username",
-            "-p": "password",
-        }
-        command_dict = args_to_dict(params, flag_map)
-        return command_dict
-
-    parsed = parse_command(args)
-
-    if parsed is None:
-        show_help()
-        return
-
-    #TODO
-    sql_res = db.update(parsed)
-    print(sql_res)
-
-
-def delete(*args):
+def read(master_key: str, *args) -> str:
     def parse_command(command):
         params = command[0]
         flag_map = {
@@ -96,8 +95,120 @@ def delete(*args):
 
     if parsed is None:
         show_help()
-        return
+        return ""
 
-    #TODO
-    sql_res = db.delete(parsed)
-    print(sql_res)
+    link = parsed['link']
+    con = sqlite3.connect(DB_PATH)
+    cur = con.cursor()
+    try:
+        cur.execute("SELECT link, username, password FROM Credentials WHERE link = ?", (link,))
+        rows = cur.fetchall()
+        if len(rows) == 0 :
+            return f"No credentials found for {link}"
+        res = []
+        for r in rows:
+            row = list(r)
+            decrypted_password = password_decrypt(row[2], master_key).decode()
+            row[2] = decrypted_password
+            res.append(row)
+        rows_list = [row for row in res]
+        rows_table_formated = format_in_table(rows_list)
+        return rows_table_formated
+    except sqlite3.Error as error:
+        return str(error)
+    finally:
+        con.close()
+
+
+def update(master_key, *args) -> str:
+    def parse_command(command):
+        params = command[0]
+        flag_map = {
+            "-l": "link",
+            "-nl": "new_link",
+            "-nu": "username",
+            "-np": "password",
+        }
+        command_dict = args_to_dict(params, flag_map, autocomplete=True)
+        return command_dict
+
+    parsed = parse_command(args)
+    if parsed is None:
+        show_help()
+        return ""
+
+    link = parsed['link']
+
+    if link == "":
+        return f"You need to specify a link to update your credentials\nProvided link: {link}"
+
+    if parsed['new_link'] == "" and parsed['username'] == "" and parsed['password'] == "":
+        return f"Nothing to update"
+
+    new_link = parsed['new_link'] if parsed['new_link'] != "" else link
+
+    con = sqlite3.connect(DB_PATH)
+    cur = con.cursor()
+
+    # Retrieve missing credentials
+    if not parsed['username'] or not parsed['password']:
+        try:
+            cur.execute("SELECT username, password FROM Credentials WHERE link = ?", (link,))
+            result = cur.fetchone()
+            if result:
+                parsed['username'] = parsed['username'] or result[0]
+                parsed['password'] = parsed['password'] or password_decrypt(result[1], master_key).decode()
+            else:
+                return f"No credentials found for {link}\nUpdate canceled"
+        except sqlite3.Error as error:
+            con.rollback()
+            return str(error)
+
+    # Update
+    try:
+        encrypted_password = password_encrypt(parsed['password'].encode(), master_key, ITERATIONS).decode()
+        if "-np" in args[0]:
+            cur.execute("UPDATE Credentials SET link = ?, username = ?, password = ? WHERE link = ?",
+                    (new_link, parsed['username'], encrypted_password, link))
+        else :
+            cur.execute("UPDATE Credentials SET link = ?, username = ? WHERE link = ?",
+            (new_link, parsed['username'], link))
+        con.commit()
+        return f"Updated credentials for {parsed['username']} with link {new_link}"
+    except sqlite3.Error as error:
+        con.rollback()
+        return str(error)
+    finally:
+        con.close()
+
+
+def delete(*args) -> str:
+    def parse_command(command):
+        params = command[0]
+        flag_map = {
+            "-l": "link",
+        }
+        command_dict = args_to_dict(params, flag_map)
+        return command_dict
+
+    parsed = parse_command(args)
+    if parsed is None:
+        show_help()
+        return ""
+
+    link = parsed['link']
+
+    con = sqlite3.connect(DB_PATH)
+    cur = con.cursor()
+    try:
+        cur.execute("DELETE FROM Credentials WHERE link = ?", (link,))
+        con.commit()
+        if cur.rowcount == 0:
+            return f"No credentials found for {link}"
+        else :
+            return f"Successfully deleted credentials for {link}"
+    except sqlite3.Error as error:
+        con.rollback()
+        return str(error)
+    finally:
+        con.close()
