@@ -70,7 +70,7 @@ def show_help():  # TODO
              🛠️  Lockduck Helper page  🛠️
 ======================================================
 
-Usage: [COMMAND] [OPTIONS] [ARGUMENTS]
+Usage: COMMAND [OPTIONS ARGUMENTS]
 
 📋 Commands:
 
@@ -90,6 +90,9 @@ Usage: [COMMAND] [OPTIONS] [ARGUMENTS]
   🗑️ delete       Delete a record.
                  Usage: delete -l <link>
                  Example: delete -l website
+                 
+  🎲️ generate     Generate a random string.
+                 Usage: generate [length]
 
 ⚙️ **Additional Commands**:
 
@@ -109,7 +112,7 @@ def app():
         action = user_input.lower().split(" ")[0]
         args = user_input.lower().split(" ")[1:]
 
-        if len(args) == 0 and action not in ["exit", "quit", "logout"]:
+        if len(args) == 0 and action not in ["exit", "quit", "logout", "generate", "help"]:
             show_help()
             continue
 
@@ -133,6 +136,9 @@ def app():
             case "logout":
                 username, master_key = welcome()
                 master_key = ""
+            case "generate":
+                length = args[0] if args else 12
+                click.echo(command.generate_password(int(length)))
             case _:
                 show_help()
 

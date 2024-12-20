@@ -3,6 +3,8 @@ import texttable
 from app import show_help
 from db import DB_PATH
 from encryption import password_encrypt, password_decrypt
+import random
+import string
 
 ITERATIONS = 100_000
 
@@ -218,3 +220,8 @@ def delete(user_id: int, *args) -> str:
         return str(error)
     finally:
         con.close()
+
+def generate_password(length=12) -> str:
+    characters = string.ascii_letters + string.digits + string.punctuation
+    password = ''.join(random.choice(characters) for i in range(length))
+    return password
