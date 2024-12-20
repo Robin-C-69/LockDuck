@@ -1,10 +1,7 @@
 import sqlite3
-
 import texttable
-from pydantic import NoneStr
-
 from app import show_help
-from db_models import DB_PATH
+from db import DB_PATH
 from encryption import password_encrypt, password_decrypt
 
 ITERATIONS = 100_000
@@ -44,7 +41,16 @@ def format_in_table(rows_list) -> str:
     return table_obj.draw()
 
 
-def create(master_key: str, *args) -> str:
+def get_user_id(username):
+    con = sqlite3.connect(DB_PATH)
+    cur = con.cursor()
+    cur.execute("SELECT id FROM Users WHERE name = ?", (username,))
+    user_id = cur.fetchone()[0]
+    con.close()
+    return user_id
+
+
+def create(user_id: int, master_key: str, *args) -> str:
     def parse_command(command):
         params = command[0]
         flag_map = {
@@ -71,8 +77,8 @@ def create(master_key: str, *args) -> str:
         cur.execute("SELECT username from Credentials where link = ?", (link,))
         if cur.fetchone() is not None:
             return f"link {link} already exists"
-        cur.execute("INSERT INTO Credentials (link, username, password) VALUES (?, ?, ?)",
-                    (link, username, encrypted_password))
+        cur.execute("INSERT INTO Credentials (link, username, password, user_id) VALUES (?, ?, ?, ?)",
+                    (link, username, encrypted_password, user_id))
         con.commit()
         return f"New credential created for {username} with link {link}"
     except sqlite3.Error as error:
@@ -82,7 +88,7 @@ def create(master_key: str, *args) -> str:
         con.close()
 
 
-def read(master_key: str, *args) -> str:
+def read(user_id: int, master_key: str, *args) -> str:
     def parse_command(command):
         params = command[0]
         flag_map = {
@@ -101,7 +107,7 @@ def read(master_key: str, *args) -> str:
     con = sqlite3.connect(DB_PATH)
     cur = con.cursor()
     try:
-        cur.execute("SELECT link, username, password FROM Credentials WHERE link = ?", (link,))
+        cur.execute("SELECT link, username, password FROM Credentials WHERE link = ? AND user_id = ?", (link, user_id))
         rows = cur.fetchall()
         if len(rows) == 0 :
             return f"No credentials found for {link}"
@@ -120,7 +126,7 @@ def read(master_key: str, *args) -> str:
         con.close()
 
 
-def update(master_key, *args) -> str:
+def update(user_id: int, master_key, *args) -> str:
     def parse_command(command):
         params = command[0]
         flag_map = {
@@ -153,7 +159,7 @@ def update(master_key, *args) -> str:
     # Retrieve missing credentials
     if not parsed['username'] or not parsed['password']:
         try:
-            cur.execute("SELECT username, password FROM Credentials WHERE link = ?", (link,))
+            cur.execute("SELECT username, password FROM Credentials WHERE link = ? AND user_id= ?", (link, user_id))
             result = cur.fetchone()
             if result:
                 parsed['username'] = parsed['username'] or result[0]
@@ -168,11 +174,11 @@ def update(master_key, *args) -> str:
     try:
         encrypted_password = password_encrypt(parsed['password'].encode(), master_key, ITERATIONS).decode()
         if "-np" in args[0]:
-            cur.execute("UPDATE Credentials SET link = ?, username = ?, password = ? WHERE link = ?",
-                    (new_link, parsed['username'], encrypted_password, link))
+            cur.execute("UPDATE Credentials SET link = ?, username = ?, password = ? WHERE link = ? AND user_id = ?",
+                    (new_link, parsed['username'], encrypted_password, link, user_id))
         else :
-            cur.execute("UPDATE Credentials SET link = ?, username = ? WHERE link = ?",
-            (new_link, parsed['username'], link))
+            cur.execute("UPDATE Credentials SET link = ?, username = ? WHERE link = ? AND user_id = ?",
+            (new_link, parsed['username'], link, user_id))
         con.commit()
         return f"Updated credentials for {parsed['username']} with link {new_link}"
     except sqlite3.Error as error:
@@ -182,7 +188,7 @@ def update(master_key, *args) -> str:
         con.close()
 
 
-def delete(*args) -> str:
+def delete(user_id: int, *args) -> str:
     def parse_command(command):
         params = command[0]
         flag_map = {
@@ -201,7 +207,7 @@ def delete(*args) -> str:
     con = sqlite3.connect(DB_PATH)
     cur = con.cursor()
     try:
-        cur.execute("DELETE FROM Credentials WHERE link = ?", (link,))
+        cur.execute("DELETE FROM Credentials WHERE link = ? AND user_id = ?", (link, user_id))
         con.commit()
         if cur.rowcount == 0:
             return f"No credentials found for {link}"
