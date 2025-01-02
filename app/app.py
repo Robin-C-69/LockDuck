@@ -35,6 +35,47 @@ Please choose an option to get started:
     username, master_key = log_in(action)
     return username, master_key
 
+
+def show_help():
+    helper_text = """
+======================================================
+             🛠️  Lockduck Helper page  🛠️
+======================================================
+
+Usage: COMMAND [OPTIONS ARGUMENTS]
+
+📋 Commands:
+
+  🆕 create       Create a new record.
+                 Usage: create -l <link> -u <username> -p <password>
+                 Example: create -l website -u john -p johnpass
+
+  📖 get          View existing records.
+                 Usage: get [all | -l <link>]
+                 Example: read all
+                 Example: read -l website
+
+  📝 update       Update an existing record.
+                 Usage: update -l <link> -nl <new_link> -nu <new_username> -np <new_password>
+                 Example: update -l website -nl website -nu newjohn -np newjohnpassword
+
+  🗑️ delete       Delete a record.
+                 Usage: delete -l <link>
+                 Example: delete -l website
+
+  🎲️ generate     Generate a random string.
+                 Usage: generate [length]
+
+⚙️ **Additional Commands**:
+
+  ❓ help         Display this help message.
+  🚪 exit | quit  Exit the application.
+  🔒 logout       Log out of your current session
+
+    """
+    click.echo(helper_text)
+
+
 def log_in(action=None, counter = 0) -> tuple[Any, Any]:
     match action:
         case 0:
@@ -62,46 +103,6 @@ def log_in(action=None, counter = 0) -> tuple[Any, Any]:
             return username, password
         case _:
             click.echo(click.style('Invalid action', fg='red'))
-
-
-def show_help():  # TODO
-    helper_text = """
-======================================================
-             🛠️  Lockduck Helper page  🛠️
-======================================================
-
-Usage: COMMAND [OPTIONS ARGUMENTS]
-
-📋 Commands:
-
-  🆕 create       Create a new record.
-                 Usage: create -l <link> -u <username> -p <password>
-                 Example: create -l website -u john -p johnpass
-
-  📖 get          View existing records.
-                 Usage: get [all | -l <link>]
-                 Example: read all
-                 Example: read -l website
-
-  📝 update       Update an existing record.
-                 Usage: update -l <link> -nl <new_link> -nu <new_username> -np <new_password>
-                 Example: update -l website -nl website -nu newjohn -np newjohnpassword
-
-  🗑️ delete       Delete a record.
-                 Usage: delete -l <link>
-                 Example: delete -l website
-                 
-  🎲️ generate     Generate a random string.
-                 Usage: generate [length]
-
-⚙️ **Additional Commands**:
-
-  ❓ help         Display this help message.
-  🚪 exit | quit  Exit the application.
-  🔒 logout       Log out of your current session
-
-    """
-    click.echo(helper_text)
 
 
 def app():
@@ -135,7 +136,6 @@ def app():
                 break
             case "logout":
                 username, master_key = welcome()
-                master_key = ""
             case "generate":
                 length = args[0] if args else 12
                 click.echo(command.generate_password(int(length)))

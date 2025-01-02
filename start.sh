@@ -10,7 +10,10 @@ VOLUME_MOUNT_PATH="/mnt"
 # Check if the image already exists
 if ! docker images --format '{{.Repository}}:{{.Tag}}' | grep "$IMAGE_NAME"; then
     echo "Image $IMAGE_NAME not found. Building the image..."
-    docker build -t "$IMAGE_NAME" .
+    if ! docker build -t "$IMAGE_NAME" .; then
+        echo "Failed to build the image."
+        exit 1
+    fi
 else
     echo "Image $IMAGE_NAME already exists. Skipping build."
 fi
