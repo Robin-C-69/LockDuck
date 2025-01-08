@@ -1,7 +1,8 @@
+import argparse
 import time
+from getpass import getpass
 from typing import Any
-import click
-import commands as command
+import commands
 import db
 
 
@@ -19,7 +20,7 @@ def welcome() -> tuple[Any, Any]:
 #   |________/ \______/  \_______/|__/  \__/ \_______/ \______/  \_______/|__/  \__/    #
 #                                                                                       #
 # ===================================================================================== #
-    
+
  🦆 Lockduck — Your Secure Terminal Password Manager 🦆
 ---------------------------------------------------------
      🛡️  Secured   |   🔒 Encrypted   |   ⚡ Fast
@@ -30,8 +31,17 @@ Please choose an option to get started:
 2: 🆕 Create New Account
     """
 
-    click.echo(banner)
-    action = click.prompt("Enter your choice (0-2):", prompt_suffix="", type=int)
+    print(banner)
+    action = None
+    while action is None:
+        try :
+            action = int(input("Enter your choice (0-2): "))
+            if action < 0 or action > 2:
+                print("Invalid choice. Please enter a number between 0 and 2.")
+                action = None
+        except ValueError:
+            print("Invalid input. Please enter a number between 0 and 2.")
+            action = None
     username, master_key = log_in(action)
     return username, master_key
 
@@ -52,18 +62,18 @@ Usage: COMMAND [OPTIONS ARGUMENTS]
 
   📖 get          View existing records.
                  Usage: get [all | -l <link>]
-                 Example: read all
-                 Example: read -l website
+                 Example: get all
+                 Example: get -l website
 
   📝 update       Update an existing record.
                  Usage: update -l <link> -nl <new_link> -nu <new_username> -np <new_password>
-                 Example: update -l website -nl website -nu newjohn -np newjohnpassword
+                 Example: update -l website -nl newsite -nu newuser -np newpass
 
   🗑️ delete       Delete a record.
                  Usage: delete -l <link>
                  Example: delete -l website
 
-  🎲️ generate     Generate a random string.
+  🎲 generate     Generate a random string.
                  Usage: generate [length]
 
 ⚙️ **Additional Commands**:
@@ -71,76 +81,115 @@ Usage: COMMAND [OPTIONS ARGUMENTS]
   ❓ help         Display this help message.
   🚪 exit | quit  Exit the application.
   🔒 logout       Log out of your current session
-
     """
-    click.echo(helper_text)
+    print(helper_text)
 
 
-def log_in(action=None, counter = 0) -> tuple[Any, Any]:
+def log_in(action=None, counter=0) -> tuple[Any, Any]:
     match action:
         case 0:
             exit()
         case 1:
-            if counter >= 3 :
-                wait_time = (counter - 2) * 2  # Starting at 2 seconds for the 3rd failed attempt, 4 for the 4th, etc.
-                click.echo(f"Too many failed attempts. Retrying in {wait_time} seconds...")
+            if counter >= 3:
+                wait_time = (counter - 2) * 2
+                print(f"Too many failed attempts. Retrying in {wait_time} seconds...")
                 time.sleep(wait_time)
                 welcome()
-            username = click.prompt('Username', prompt_suffix=":", type=str)
-            password = click.prompt('Password', prompt_suffix=":", type=str, hide_input=True)
+            username = input("Username: ").strip()
+            password = getpass("Password: ").strip()
             is_logged_in = db.login(username, password)
             if not is_logged_in:
-                click.echo(click.style('Invalid username or password', fg='red'))
-                log_in(1, counter+1)
+                print("Invalid username or password")
+                return log_in(1, counter + 1)
             return username, password
         case 2:
-            username = click.prompt('Username', prompt_suffix=":", type=str)
-            password = click.prompt('Password', prompt_suffix=":", type=str, hide_input=True)
+            username = input("Username: ").strip()
+            password = getpass("Password: ").strip()
             is_registered, error = db.register(username, password)
             if not is_registered:
-                click.echo(click.style(f'An error occurred during registration: {error}', fg='red'))
-                log_in()
+                print(f"An error occurred during registration: {error}")
+                return log_in()
             return username, password
         case _:
-            click.echo(click.style('Invalid action', fg='red'))
+            print("Invalid action")
+
+
+def parse_and_execute(user_id, master_key, command_input):
+    parser = argparse.ArgumentParser(prog="Lockduck", description="Your secure password manager.")
+    subparsers = parser.add_subparsers(dest="command", help="Available commands")
+
+    # Create command
+    create_parser = subparsers.add_parser("create", help="Create a new record")
+    create_parser.add_argument("-l", "--link", required=True, help="Link for the record")
+    create_parser.add_argument("-u", "--username", required=True, help="Username for the record")
+    create_parser.add_argument("-p", "--password", required=True, help="Password for the record")
+
+    # Get command
+    get_parser = subparsers.add_parser("get", help="Get records")
+    get_parser.add_argument("-l", "--link", help="Link to fetch")
+    get_parser.add_argument("-a", "--all", action="store_true", help="Get all records")
+
+    # Update command
+    update_parser = subparsers.add_parser("update", help="Update a record")
+    update_parser.add_argument("-l", "--link", required=True, help="Link of the record to update")
+    update_parser.add_argument("-nl", "--new-link", help="New link")
+    update_parser.add_argument("-nu", "--new-username", help="New username")
+    update_parser.add_argument("-np", "--new-password", help="New password")
+
+    # Delete command
+    delete_parser = subparsers.add_parser("delete", help="Delete a record")
+    delete_parser.add_argument("-l", "--link", help="Link of the record to delete")
+    delete_parser.add_argument("-a", "--all", action="store_true", help="Delete all records")
+
+    # Generate command
+    generate_parser = subparsers.add_parser("generate", help="Generate a random password")
+    generate_parser.add_argument("-l", "--length", type=int, default=12, help="Length of the password")
+
+    try:
+        args = parser.parse_args(command_input.split())
+        match args.command:
+            case "create":
+                print(commands.create(user_id, master_key, vars(args)))
+            case "get":
+                if not (args.link or args.all):
+                    print("Please provide a link or use --all to fetch all records.")
+                    return
+                if args.link and args.all:
+                    print("Please provide either a link or use --all to fetch all records.")
+                    return
+                print(commands.read(user_id, master_key, vars(args)))
+            case "update":
+                if not (args.new_link or args.new_username or args.new_password):
+                    print("Please provide at least one field to update.")
+                    return
+                print(commands.update(user_id, master_key, vars(args)))
+            case "delete":
+                if not (args.link or args.all):
+                    print("Please provide a link or use --all to delete all records.")
+                    return
+                print(commands.delete(user_id, vars(args)))
+            case "generate":
+                print(commands.generate_password(args.length))
+            case _:
+                show_help()
+    except SystemExit:
+        print("Invalid input. Type 'help' for guidance.")
 
 
 def app():
     db.init_db()
     username, master_key = welcome()
     while True:
-        user_input = click.prompt(">>", prompt_suffix="", type=str)
-        action = user_input.lower().split(" ")[0]
-        args = user_input.lower().split(" ")[1:]
-
-        if len(args) == 0 and action not in ["exit", "quit", "logout", "generate", "help"]:
+        user_input = input(">> ").strip()
+        if user_input.lower() in ["exit", "quit"]:
+            break
+        elif user_input.lower() == "logout":
+            username, master_key = welcome()
+        elif user_input.lower() == "help":
             show_help()
-            continue
-
-        user_id = command.get_user_id(username)
-
-        match action:
-            case "create":
-                transaction_result = command.create(user_id, master_key, args)
-                click.echo(transaction_result)
-            case "get":
-                transaction_result = command.read(user_id, master_key, args)
-                click.echo(transaction_result)
-            case "update":
-                transaction_result = command.update(user_id, master_key, args)
-                click.echo(transaction_result)
-            case "delete":
-                transaction_result = command.delete(user_id, args)
-                click.echo(transaction_result)
-            case "exit" | "quit":
-                break
-            case "logout":
-                username, master_key = welcome()
-            case "generate":
-                length = args[0] if args else 12
-                click.echo(command.generate_password(int(length)))
-            case _:
-                show_help()
+        else:
+            user_id = commands.get_user_id(username)
+            parse_and_execute(user_id, master_key, user_input)
 
 
 if __name__ == "__main__":
