@@ -1,8 +1,7 @@
 import hashlib
 import sqlite3
 
-# DB_PATH = "/mnt/lockduck.db"
-DB_PATH = "lockduck.db"
+DB_PATH = "/mnt/lockduck.db"
 
 def init_db() :
     con = sqlite3.connect(DB_PATH)
