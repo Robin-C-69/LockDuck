@@ -65,7 +65,7 @@ def read(user_id: int, master_key: str, args) -> str:
         )
         rows = cur.fetchall()
         if not rows:
-            return f"No credentials found for {link}"
+            return "No credentials found" + (f" for {link}" if link else "")
         res = []
         for r in rows:
             row = list(r)
