@@ -16,11 +16,18 @@ Lockduck runs locally using Docker
 ## Usage
 
 1. Build and run the Docker container:
-    ```sh
-    cd lockduck
+
+    if you are on linux based machine : 
+   ```sh
     ./start.sh
     ```
+   
+    if you are on windows machine :
+    ```sh
+    ./start.bat
+   ```
    *<ins>Note:</ins> A docker volume will be created at your default location. Try to delete it and your datas will magically disappear*
+
 
 2. Once your container is running, you have 3 options:
    - 0: Exit
